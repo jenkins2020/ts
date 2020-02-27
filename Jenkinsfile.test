@@ -1,0 +1,19 @@
+#!/bin/groovy
+pipeline {
+    agent {
+        docker {
+            image 'fedora'
+            args '-u 0'
+        }
+    }
+
+    stages {
+        stage('Init') {
+            steps {
+                copyArtifacts(projectName: 'hf_buildrpm')
+                sh('dnf install -y hello-[^d]*rpm')
+                sh('hello')
+            }
+        }
+    }
+}
