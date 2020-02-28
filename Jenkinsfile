@@ -1,8 +1,16 @@
 #!/bin/groovy
 pipeline {
-    agent {
-        dockerfile true
+    parameters {
+        string(name:'VERSION', defaultValue:'latest', description:'Fedora version')
     }
+
+    agent {
+        dockerfile {
+            additionalBuildArgs  "--build-arg version=${VERSION}"
+        }
+    }
+
+    options { timestamps() }
 
     stages {
         stage('Init') {
@@ -16,13 +24,34 @@ pipeline {
             steps {
                 sh('cp hello.spec ~/rpmbuild/SPECS')
                 sh('cd ~/rpmbuild/SPECS; rpmbuild -ba hello.spec')
-                sh('cp ~/rpmbuild/RPMS/*/*.rpm .')
+                // Copy artifacts back into workspace, versioned.
+                sh("mkdir -p build_${VERSION}/")
+                sh("cp ~/rpmbuild/RPMS/*/*.rpm build_${VERSION}/")
             }
         }
         stage('Deploy') {
             steps {
-                archiveArtifacts(artifacts: '*.rpm')
+                // zip() needs non-default plugin 'file-operations'
+                //zip(zipFile: "hello.fedora:${VERSION}.zip", archive: true, glob: '*.rpm')
+                // archiveArtifacts() doesn't trivially allow versioning.
+                archiveArtifacts(artifacts: "build_${VERSION}/*.rpm")
             }
+        }
+    }
+    
+    post {
+        always {
+            echo 'YAY!'
+        }
+        /*
+        success { 
+            echo 'Call test pipeline here'
+            build(job: 'hf_testrpm', wait: true)
+            // TODO^2 use matrix to call other pipeline
+        }
+        */
+        cleanup {
+            cleanWs()  // uses worspace-clean plugin
         }
     }
 }
